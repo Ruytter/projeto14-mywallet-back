@@ -11,9 +11,6 @@ const userSchema = joi.object({
   name: joi.string().required().min(3).max(100),
   email: joi.string().required().min(1),
   password: joi.string().required().min(6),
-  // valorentrada:
-  // valorsaida:
-  // descricao:
 });
 
 const app = express();
@@ -32,8 +29,9 @@ try {
 
 const db = mongoClient.db("mywallet");
 const User = db.collection("user");
-const Entrada = db.collection("entrada");
-const Saida = db.collection("Saida");
+const Entradas = db.collection("entradas");
+const Saidas = db.collection("saidas");
+const Sessoes = db.collection("sessions");
 
 app.post("/sign-up", async (req, res) => {
   const user = req.body;
@@ -78,10 +76,13 @@ app.post("/", async (req, res) => {
       return res.sendStatus(401);
     }
 
-    await db.collection("session").insertOne({
-      token,
-      userId: userExiste._id
-    })
+    const sessionExiste = await Sessoes.findOne({ userId: userExiste._id });
+    if (!sessionExiste) {
+      await Sessoes.insertOne({
+        token,
+        userId: userExiste._id
+      })
+    }
 
     res.send({ message: `Olá, ${userExiste.name}`, token });
   } catch (error) {
@@ -91,15 +92,61 @@ app.post("/", async (req, res) => {
 });
 
 app.post("/entrada", async (req, res) => {
-  const { entrada, descricao } = req.body;
-  console.log(dayjs().format('DD/MM'))
-  res.send({ entrada });
+  const { entrada, descricao, token } = req.body;
+  
+  const sessionExiste = await Sessoes.findOne({ token });
+  if (!sessionExiste) {
+    return res.sendStatus(401);
+  }
+
+  await Entradas.insertOne({
+    date: dayjs().format('DD/MM'),
+    entrada,
+    descricao
+  })
+
+  res.send(200);
 });
 
 app.post("/saida", async (req, res) => {
-  const { saida, descricao } = req.body;
+  const { saida, descricao, token } = req.body;
+console.log(token)
+  const sessionExiste = await Sessoes.findOne({ token });
+  if (!sessionExiste) {
+    return res.sendStatus(401);
+  }
+
+  await Saidas.insertOne({
+    userId: sessionExiste.userId,
+    date: dayjs().format('DD/MM'),
+    saida,
+    descricao
+  })
   
-  res.send({ saida });
+  res.sendStatus(200);
 });
+
+app.get("/fluxo", async (req, res) => {
+  const { authorization } = req.headers;
+  const token = authorization?.replace("Bearer ", "");
+  if (!token) {
+    return res.sendStatus(401);
+  }
+  console.log(token)
+  const sessionExiste = await Sessoes.findOne({ token });
+  console.log(sessionExiste)
+  if (!sessionExiste) {
+    return res.sendStatus(401);
+  }
+  
+  try {
+    const entradas = await Entradas.find({ userId: sessionExiste.userId }).toArray();
+    const saidas = await Saidas.find({userId: sessionExiste.userId }).toArray();
+    console.log(saidas)
+    res.send({entradas, saidas});
+  } catch (err) {
+    res.sendStatus(500);
+  }
+})
 
 app.listen(5000, () => console.log("runing in port 5000"));
