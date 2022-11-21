@@ -27,8 +27,8 @@ try {
   console.log(err);
 }
 
-const db = mongoClient.db("mywallet");
-const User = db.collection("user");
+const db = mongoClient.db("mywallet"); 
+const User = db.collection("users");
 const Entradas = db.collection("entradas");
 const Saidas = db.collection("saidas");
 const Sessoes = db.collection("sessions");
@@ -82,9 +82,11 @@ app.post("/", async (req, res) => {
         token,
         userId: userExiste._id
       })
+      res.send({ message: `Olá, ${userExiste.name}`, token });
+      return
     }
 
-    res.send({ message: `Olá, ${userExiste.name}`, token });
+    res.send({ message: `Olá, ${userExiste.name}`, token:sessionExiste.token });
   } catch (error) {
     console.log(error);
     res.sendStatus(500);
@@ -92,14 +94,20 @@ app.post("/", async (req, res) => {
 });
 
 app.post("/entrada", async (req, res) => {
-  const { entrada, descricao, token } = req.body;
-  
+  const { entrada, descricao } = req.body;
+  const { authorization } = req.headers;
+  const token = authorization?.replace("Bearer ", "");
+  if (!token) {
+    return res.sendStatus(401);
+  }
+
   const sessionExiste = await Sessoes.findOne({ token });
   if (!sessionExiste) {
     return res.sendStatus(401);
   }
 
   await Entradas.insertOne({
+    userId: sessionExiste.userId,
     date: dayjs().format('DD/MM'),
     entrada,
     descricao
@@ -109,8 +117,12 @@ app.post("/entrada", async (req, res) => {
 });
 
 app.post("/saida", async (req, res) => {
-  const { saida, descricao, token } = req.body;
-console.log(token)
+  const { saida, descricao } = req.body;
+  const { authorization } = req.headers;
+  const token = authorization?.replace("Bearer ", "");
+  if (!token) {
+    return res.sendStatus(401);
+  }
   const sessionExiste = await Sessoes.findOne({ token });
   if (!sessionExiste) {
     return res.sendStatus(401);
@@ -132,17 +144,14 @@ app.get("/fluxo", async (req, res) => {
   if (!token) {
     return res.sendStatus(401);
   }
-  console.log(token)
   const sessionExiste = await Sessoes.findOne({ token });
-  console.log(sessionExiste)
   if (!sessionExiste) {
     return res.sendStatus(401);
   }
   
   try {
-    const entradas = await Entradas.find({ userId: sessionExiste.userId }).toArray();
+    const entradas = await Entradas.find({userId: sessionExiste.userId }).toArray();
     const saidas = await Saidas.find({userId: sessionExiste.userId }).toArray();
-    console.log(saidas)
     res.send({entradas, saidas});
   } catch (err) {
     res.sendStatus(500);
