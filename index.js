@@ -82,11 +82,11 @@ app.post("/", async (req, res) => {
         token,
         userId: userExiste._id
       })
-      res.send({ message: `Olá, ${userExiste.name}`, token });
+      res.send({ user: userExiste.name, token });
       return
     }
 
-    res.send({ message: `Olá, ${userExiste.name}`, token:sessionExiste.token });
+    res.send({ user: userExiste.name, token: sessionExiste.token });
   } catch (error) {
     console.log(error);
     res.sendStatus(500);
